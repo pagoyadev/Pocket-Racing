@@ -173,10 +173,10 @@ impl PhysicsWorld {
 // lateral-grip caps all derive from this single knob, so scaling the whole game's
 // speed (and matching acceleration/grip) is one edit. ×1.0 = the tuned baseline;
 // ×4/3 bumps the pace by a third. MUST match player.gd.
-const SPEED_SCALE: f64 = 4.0 / 3.0;
-const THROTTLE_FORCE: f64 = 8_500.0 * SPEED_SCALE;
-const REVERSE_FORCE: f64 = 2_500.0 * SPEED_SCALE;
-const BRAKE_FORCE: f64 = 4_000.0 * SPEED_SCALE;
+const PACE_SCALE: f64 = 16.0 / 9.0; // master pace multiplier (was 4/3; bumped another ×4/3 → +1/3 pace)
+const THROTTLE_FORCE: f64 = 8_500.0 * PACE_SCALE;
+const REVERSE_FORCE: f64 = 2_500.0 * PACE_SCALE;
+const BRAKE_FORCE: f64 = 4_000.0 * PACE_SCALE;
 const BRAKE_MIN_SPEED: f64 = 0.5;
 const MAX_TURN_RATE_GRIP: f64 = 1.2;
 const MAX_TURN_RATE_DRIFT: f64 = 2.4; // softer than before (was 3.2): a gentler rotation
@@ -191,15 +191,15 @@ const STEER_P_GAIN: f64 = 25_000.0;
 // controllable. Past SLIP_BREAK on grip the car "falls into" the drift STATE (see
 // the drift-state machine in step()): blend rises, lat_accel drops to drift's — a
 // graceful slide, not a punishing spin.
-const GRIP_LAT_ACCEL: f64 = 9.0 * SPEED_SCALE; // m/s² — holds gentle/slow turns, washes at speed
-const DRIFT_LAT_ACCEL: f64 = 3.0 * SPEED_SCALE; // m/s² — low, so the drift slide lags and lives
-                                                // Falling into the drift state couples ANGLE and EFFORT (see drift_enter_threshold_deg):
-                                                // gentle steering must build the full SLIP_BREAK_DEG of slide, but cranking hard at
-                                                // speed drops the bar to SLIP_BREAK_HARD_DEG — you snap into a drift almost at once.
+const GRIP_LAT_ACCEL: f64 = 9.0 * PACE_SCALE; // m/s² — holds gentle/slow turns, washes at speed
+const DRIFT_LAT_ACCEL: f64 = 3.0 * PACE_SCALE; // m/s² — low, so the drift slide lags and lives
+                                               // Falling into the drift state couples ANGLE and EFFORT (see drift_enter_threshold_deg):
+                                               // gentle steering must build the full SLIP_BREAK_DEG of slide, but cranking hard at
+                                               // speed drops the bar to SLIP_BREAK_HARD_DEG — you snap into a drift almost at once.
 const SLIP_BREAK_DEG: f64 = 18.0; // gentle steering: slip needed to fall into drift
 const SLIP_BREAK_HARD_DEG: f64 = 5.0; // full lock at speed: falls in almost at once
 const DRIFT_EFFORT_SPEED_REF: f64 = 6.0; // speed (m/s) at which the effort term saturates
-const SLIP_EXIT_DEG: f64 = 4.0; // slide settles below this (button up) → back to grip
+const SLIP_EXIT_DEG: f64 = 8.0; // slide settles below this (button up) → back to grip (wide: re-grips early)
                                 // Manual-drift initiation flick: pressing the drift key together with a steer
                                 // direction snaps the yaw rate hard at once, so a deliberate drift turns in sharply
                                 // — always sharper (and more desirable) than merely washing into one on grip.
@@ -218,13 +218,17 @@ const NORMAL_LINEAR_DAMPING: f64 = 0.3;
 const DRIFT_LINEAR_DAMPING: f64 = 0.18;
 const DRIFT_MIN_SPEED: f64 = 1.5;
 
-// Cruise speed is THROTTLE_FORCE / (mass·damping) = 8500·SPEED_SCALE / (1000·0.3).
-// The launch (rocket start) is server-authoritative: when throttle is first down at
-// GO, the car is propelled to LAUNCH_SPEED·quality, where quality falls off over
-// LAUNCH_WINDOW. A perfect launch slightly OVERSHOOTS cruise (a real head start) —
-// the old client-only bonus only reached ~half cruise, so it felt like a slowdown.
-const LAUNCH_WINDOW: f64 = 0.25; // seconds after GO; quality = 1 - t/window (held at GO = 1.0) — tight: nailing 100% is precise
-const LAUNCH_SPEED: f64 = 32.0 * SPEED_SCALE; // perfect-launch speed (≈ cruise + overshoot)
+// Cruise speed is THROTTLE_FORCE / (mass·damping) = 8500·PACE_SCALE / (1000·0.3).
+// The launch (rocket start) is server-authoritative. Quality is graded on the
+// SIGNED offset of the player's FIRST throttle press relative to GO: 0 = exactly on
+// GO (perfect), negative = jumped early / held throttle, positive = slow reaction.
+// quality = (1 - |offset|/LAUNCH_WINDOW)^LAUNCH_SHARPNESS, so both early and late
+// presses fall below 100% and nailing a true 100% is frame-precise. Holding from
+// the countdown reads as a large negative offset → no boost. A perfect launch
+// slightly OVERSHOOTS cruise (a real head start). Mirrored in player.gd.
+const LAUNCH_WINDOW: f64 = 0.30; // seconds either side of GO that still scores; beyond it → 0
+const LAUNCH_SHARPNESS: f64 = 2.0; // >1 steepens the falloff so 100% needs near-perfect timing
+const LAUNCH_SPEED: f64 = 32.0 * PACE_SCALE; // perfect-launch speed (≈ cruise + overshoot)
 const PAD_BOOST_SCALE: f64 = 0.5; // scales track pad-boost strengths to the halved speeds
 
 // Charge fills the bar at full rate up to BOOST_CHARGE_KNEE (~2/3), then tapers to
@@ -240,11 +244,11 @@ const BOOST_CHARGE_KNEE: f64 = 0.667; // first 2/3 fill normally
 const BOOST_CHARGE_TOP_FACTOR: f64 = 0.25; // last third is degressive (down to 25% rate)
 const BOOST_CHARGE_DECAY: f64 = 2.0;
 const BOOST_CHARGE_MIN: f64 = 0.15;
-const BOOST_PEAK_BONUS: f64 = 11.5 * SPEED_SCALE; // drift-boost overshoot above cruise
+const BOOST_PEAK_BONUS: f64 = 11.5 * PACE_SCALE; // drift-boost overshoot above cruise
 const BOOST_DURATION: f64 = 1.5;
 const BOOST_ALIGN_THRESHOLD_COS: f64 = 0.9781476; // cos(12°)
 const BOOST_PENDING_TIMEOUT: f64 = 1.5;
-const BOOST_SUSTAIN_FORCE: f64 = 16_500.0 * SPEED_SCALE; // scales with the drive force
+const BOOST_SUSTAIN_FORCE: f64 = 16_500.0 * PACE_SCALE; // scales with the drive force
 
 /// Six visually distinct car tints, handed out by lobby slot index so every
 /// racer in a lobby gets a unique colour, kept for as long as they hold the slot.
@@ -414,6 +418,18 @@ fn drift_enter_threshold_deg(steer_effort: f64, speed: f64) -> f64 {
     SLIP_BREAK_DEG + (SLIP_BREAK_HARD_DEG - SLIP_BREAK_DEG) * effort
 }
 
+/// Rocket-start quality in 0..1 from the SIGNED press offset (seconds) relative to
+/// GO: 0 = perfect, ±LAUNCH_WINDOW or beyond = 0. The falloff is symmetric (early
+/// holds are penalised exactly like slow reactions) and raised to LAUNCH_SHARPNESS
+/// so a true 100% is frame-precise. Mirrored in player.gd (`_launch_quality`).
+fn launch_quality(offset: f64) -> f64 {
+    let off = offset.abs();
+    if off >= LAUNCH_WINDOW {
+        return 0.0;
+    }
+    (1.0 - off / LAUNCH_WINDOW).powf(LAUNCH_SHARPNESS)
+}
+
 /// Output of one handling tick: the yaw torque impulse to apply and the new
 /// horizontal velocity after lateral traction. Kept as a pure function so it is
 /// the single source of the formula — `Lobby::step` applies it to the rapier
@@ -527,6 +543,10 @@ pub(crate) struct Racer {
     prev_star_drift: bool,
     prev_drift_state: bool,
     launch_done: bool,
+    // Signed time (s) of the player's first throttle press relative to GO (negative
+    // = pressed/held during the countdown, positive = after GO). None until they
+    // first hit the gas. Graded by launch_quality() at the rocket start.
+    launch_press_offset: Option<f64>,
     laps: u8,
     // Per-gate previous signed distance along the gate's forward normal (sized
     // lazily to track.gates), plus the checkpoint gate indices crossed this lap.
@@ -565,6 +585,7 @@ impl Racer {
             prev_star_drift: false,
             prev_drift_state: false,
             launch_done: false,
+            launch_press_offset: None,
             laps: 0,
             prev_d: Vec::new(),
             checkpoints_hit: HashSet::new(),
@@ -612,6 +633,7 @@ pub struct Lobby {
     physics: PhysicsWorld,
     race_timer: f64,
     finish_timer: f64,
+    last_finish_count: i32, // last whole-second finish countdown broadcast (-1 = none)
     result_hold: f64,
     finishers: Vec<String>,
     boost_pads: HashMap<ColliderHandle, f64>,
@@ -651,6 +673,7 @@ impl Lobby {
             physics,
             race_timer: 0.,
             finish_timer: 0.,
+            last_finish_count: -1,
             result_hold: 0.,
             finishers: Vec::new(),
             boost_pads: track_colliders.boost_pads,
@@ -849,6 +872,15 @@ impl Lobby {
         let is_racing = self.is_racing();
         let race_timer = self.race_timer; // time since GO, for the launch window
 
+        // Signed seconds relative to GO right now, used to time-stamp the player's
+        // first throttle press for the rocket start. Negative during the on-track
+        // countdown (Starting), 0 at GO, positive once racing.
+        let press_offset_now: Option<f64> = match self.state {
+            State::Starting => Some(self.start_timer - (PRE_COUNTDOWN_SECS + STARTING_SECS)),
+            State::Racing => Some(race_timer),
+            _ => None,
+        };
+
         for (nickname, racer) in &mut self.racers {
             let mut should_remove = false;
             while let Ok(event) = racer.rx_channel.try_recv() {
@@ -889,7 +921,22 @@ impl Lobby {
                 continue;
             }
 
+            // Time-stamp the FIRST throttle press of the start sequence (countdown or
+            // race) for the rocket-start grade. Runs even during the countdown, so
+            // holding the gas early is captured as a large-negative (penalised) offset.
+            if !racer.launch_done && racer.launch_press_offset.is_none() && racer.input.throttle {
+                if let Some(off) = press_offset_now {
+                    racer.launch_press_offset = Some(off);
+                }
+            }
+
             if !is_racing {
+                continue;
+            }
+
+            // A finished racer is done driving — its car coasts to a stop (rapier
+            // damping) while it spectates, so a held throttle doesn't carry it off.
+            if racer.finished {
                 continue;
             }
 
@@ -921,23 +968,25 @@ impl Lobby {
                 }
             };
 
-            // Server-authoritative launch (rocket start): the first time throttle is
-            // down after GO, propel the car to LAUNCH_SPEED·quality, quality fading
-            // over LAUNCH_WINDOW (held at GO = perfect). Sustained via the boost FSM.
+            // Server-authoritative launch (rocket start): grade the player's first
+            // throttle press by its offset from GO (captured above, may be negative)
+            // and propel the car to LAUNCH_SPEED·quality. Sustained via the boost FSM.
             if !racer.launch_done {
-                if racer.input.throttle {
+                if let Some(offset) = racer.launch_press_offset {
                     racer.launch_done = true;
-                    let quality = (1.0 - race_timer / LAUNCH_WINDOW).clamp(0.0, 1.0);
-                    let target = LAUNCH_SPEED * quality;
-                    let lv = rb.linvel();
-                    if target > horiz_forward.dot(lv) {
-                        rb.set_linvel(horiz_forward * target + Vec3::new(0.0, lv.y, 0.0), true);
-                        racer.boost_state = BoostState::Boosting;
-                        racer.boost_t_remaining = BOOST_DURATION;
-                        racer.boost_peak_speed = target;
+                    let quality = launch_quality(offset);
+                    if quality > 0.0 {
+                        let target = LAUNCH_SPEED * quality;
+                        let lv = rb.linvel();
+                        if target > horiz_forward.dot(lv) {
+                            rb.set_linvel(horiz_forward * target + Vec3::new(0.0, lv.y, 0.0), true);
+                            racer.boost_state = BoostState::Boosting;
+                            racer.boost_t_remaining = BOOST_DURATION;
+                            racer.boost_peak_speed = target;
+                        }
                     }
                 } else if race_timer > LAUNCH_WINDOW {
-                    racer.launch_done = true; // window passed without throttle → no launch
+                    racer.launch_done = true; // window passed without a press → no launch
                 }
             }
 
@@ -1245,10 +1294,12 @@ impl Lobby {
             racer.drift_state = false;
             racer.prev_drift_state = false;
             racer.launch_done = false;
+            racer.launch_press_offset = None;
             racer.last_sent_rotation = None;
         }
         self.race_timer = 0.;
         self.finish_timer = 0.;
+        self.last_finish_count = -1;
         self.start_timer = 0.;
         self.sync_countdown_timer = 0.;
         self.last_countdown_light = -1;
@@ -1307,6 +1358,15 @@ impl Lobby {
         }
 
         if self.finish_timer > 0.0 {
+            // Tell the racers still on track how long until the race force-ends.
+            let secs = self.finish_timer.ceil() as i32;
+            if secs != self.last_finish_count {
+                self.last_finish_count = secs;
+                self.broadcast_message(
+                    ServerMessage::Event(LobbyEvent::FinishCountdown { time: secs as f64 }),
+                    false,
+                );
+            }
             self.finish_timer -= delta;
             if self.finish_timer <= 0.0 {
                 return false;
@@ -1756,6 +1816,22 @@ mod tests {
         assert!(drift_enter_threshold_deg(1.0, fast) < drift_enter_threshold_deg(1.0, mid));
         // At a crawl effort can't trigger it: you keep full low-speed control.
         assert!((drift_enter_threshold_deg(1.0, DRIFT_MIN_SPEED) - SLIP_BREAK_DEG).abs() < 1e-9);
+    }
+
+    #[test]
+    fn launch_quality_peaks_at_go_and_is_symmetric() {
+        // Exactly on GO = perfect.
+        assert!((launch_quality(0.0) - 1.0).abs() < 1e-9);
+        // Symmetric: jumping early scores the same as the equivalent late reaction.
+        assert!((launch_quality(-0.1) - launch_quality(0.1)).abs() < 1e-9);
+        // Monotonic falloff: further from GO is always worse.
+        assert!(launch_quality(0.05) > launch_quality(0.1));
+        assert!(launch_quality(-0.05) > launch_quality(-0.15));
+        // Outside the window (incl. holding the gas from the countdown) = no boost.
+        assert_eq!(launch_quality(LAUNCH_WINDOW), 0.0);
+        assert_eq!(launch_quality(-5.0), 0.0);
+        // Steepened: one frame (~16 ms) off already drops well below 100%.
+        assert!(launch_quality(1.0 / 60.0) < 0.95);
     }
 
     #[test]

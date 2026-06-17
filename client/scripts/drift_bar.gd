@@ -31,7 +31,7 @@ const SPEED_SIZE    := 40
 const UNIT_SIZE     := 13
 # Displayed km/h is scaled up for an arcade "fast" feel; the underlying speed is
 # also low-pass filtered (below) so the number reads steadily instead of jittering.
-const SPEED_SCALE   := 6.0   # doubled when real speed was halved → km/h still reads fast
+const KMH_DISPLAY_SCALE   := 6.0   # doubled when real speed was halved → km/h still reads fast
 const SPEED_SMOOTH  := 6.0   # lower = steadier read-out (was effectively 12)
 
 var _charge: float = 0.0
@@ -70,7 +70,7 @@ func _process(delta: float) -> void:
 
 		# Low-pass filter to hide per-frame jitter, then scale for the read-out.
 		_kmh_smoothed = lerp(_kmh_smoothed, inst_kmh, clampf(delta * SPEED_SMOOTH, 0.0, 1.0))
-		var kmh := _kmh_smoothed * SPEED_SCALE
+		var kmh := _kmh_smoothed * KMH_DISPLAY_SCALE
 		if kmh < 1.0:
 			kmh = 0.0
 		_speed_kmh = int(round(kmh))

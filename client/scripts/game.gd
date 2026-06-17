@@ -409,6 +409,7 @@ var _opponents: OpponentManager
 var _ghost: GhostManager
 var _spectator_camera: Camera3D = null
 var _spectator_target: Vector3 = Vector3.ZERO
+var _local_finished: bool = false  # local player crossed the line → watching in spectator
 var _last_race_rankings: Array = []
 var _lobby_min_players: int = 2
 var _lobby_max_players: int = 4
@@ -647,16 +648,7 @@ func switch_to_track(track_id: String, race_ongoing: bool):
 	(self.car_node as RigidBody3D).freeze = true
 
 	if race_ongoing:
-
-		self.car_node.visible = false
-		self._spectator_camera = Camera3D.new()
-		self._spectator_camera.fov = 90.0
-		self._spectator_camera.position = Vector3(0.0, 200.0, 80.0)
-		$Track.add_child(self._spectator_camera)
-
-		self._spectator_camera.look_at(Vector3.ZERO, Vector3.UP)
-		self._spectator_camera.make_current()
-		switch_mode(Mode.SPECTATOR, true)
+		_enter_spectator()
 	else:
 		if self._debug_enabled:
 			self._ghost = GhostManager.new()
@@ -665,6 +657,23 @@ func switch_to_track(track_id: String, race_ongoing: bool):
 		if camera_node:
 			camera_node.make_current()
 		switch_mode(Mode.LOBBY_INTERMISSION, true)
+
+# Switch the local view to the high, whole-circuit spectator camera. Used both when
+# joining a race already in progress and when the local player finishes and watches
+# the rest of the field. Idempotent — safe to call when already spectating.
+func _enter_spectator() -> void:
+	if self.mode == Mode.SPECTATOR:
+		return
+	if self.car_node:
+		self.car_node.visible = false
+	if self._spectator_camera == null:
+		self._spectator_camera = Camera3D.new()
+		self._spectator_camera.fov = 90.0
+		self._spectator_camera.position = Vector3(0.0, 200.0, 80.0)
+		$Track.add_child(self._spectator_camera)
+		self._spectator_camera.look_at(Vector3.ZERO, Vector3.UP)
+	self._spectator_camera.make_current()
+	switch_mode(Mode.SPECTATOR, true)
 
 func on_connection():
 	var requests: Array = []
@@ -793,6 +802,7 @@ func _handle_lobby_message(message: Dictionary) -> void:
 			self._rocket_press_msec = -1
 			self._rocket_race_start_msec = -1
 			self._rocket_dispatched = false
+			self._local_finished = false
 
 			if self.mode == Mode.SPECTATOR:
 				switch_mode(Mode.LOBBY_INTERMISSION, true)
@@ -813,6 +823,11 @@ func _handle_lobby_message(message: Dictionary) -> void:
 			%UI.start_lights_countdown(t)
 			if self.mode == Mode.LOBBY_INTERMISSION:
 				%UI.show_pre_race_view()
+		if event.has("FinishCountdown"):
+			# Someone crossed the line first: racers still going see how long is left
+			# before the race force-ends. Finishers are already spectating.
+			if not self._local_finished and self.mode == Mode.IN_RACE:
+				%UI.set_info_label(tr("finish_in") % int(event["FinishCountdown"]["time"]))
 		if event.has("RaceFinished"):
 			var finished = event["RaceFinished"]
 			self._last_race_rankings = finished.get("rankings", [])
@@ -843,6 +858,11 @@ func _handle_lobby_message(message: Dictionary) -> void:
 						var laps: int = player.get("laps", 0)
 						if laps >= int(self.track_def.get("laps_to_win", 3)):
 							%UI.set_status_success(tr("finished"))
+							# Crossed the line: watch the rest of the field from the
+							# whole-circuit spectator camera instead of driving on.
+							if not self._local_finished:
+								self._local_finished = true
+								_enter_spectator()
 						else:
 							%UI.set_info_label(tr("lap") % [laps + 1, int(self.track_def.get("laps_to_win", 3))])
 				else:

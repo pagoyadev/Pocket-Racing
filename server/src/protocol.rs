@@ -140,6 +140,11 @@ pub enum LobbyEvent {
     Countdown {
         time: f64,
     },
+    /// Seconds left before a finished race force-ends, shown to racers who haven't
+    /// finished yet (starts when the first car crosses the line).
+    FinishCountdown {
+        time: f64,
+    },
     RaceAboutToStart(SpawnInfo),
     RaceStarted(()),
     RaceFinished {

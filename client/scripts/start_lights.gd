@@ -29,7 +29,21 @@ var _hide_timer: float = 0.0
 var _went_go: bool = false
 var _last_countdown_handled: int = -1
 
-var _rocket_text: String = ""
+# Rocket-start grade shown as a rank letter instead of a raw percentage. Higher
+# ranks are bigger and louder: A is spectacular (halo + shock ring), S more so
+# (bigger still + a rainbow shimmer + a double ring).
+const RANK_LETTERS := ["D", "C", "B", "A", "S"]
+const RANK_COLORS := [
+	Color(0.80, 0.84, 0.90),   # D — plain silver
+	Color(0.52, 0.86, 0.60),   # C — green
+	Color(0.40, 0.70, 1.00),   # B — blue
+	Color(1.00, 0.72, 0.18),   # A — gold
+	Color(0.62, 1.00, 0.96),   # S — bright cyan
+]
+const RANK_FONT := [56, 60, 68, 94, 120]   # base px per rank
+const RANK_SPECTACLE := [0.0, 0.0, 0.0, 0.6, 1.0]  # 0 = none, 1 = full flair
+
+var _rocket_rank: int = -1
 var _rocket_color: Color = Color.WHITE
 var _rocket_timer: float = 0.0
 
@@ -49,7 +63,7 @@ func reset() -> void:
 	_hide_timer = 0.0
 	_went_go = false
 	_last_countdown_handled = -1
-	_rocket_text = ""
+	_rocket_rank = -1
 	_rocket_timer = 0.0
 	# Stay hidden through the silent pre-countdown beat; the first countdown
 	# (or the GO flash) makes the dots appear.
@@ -90,17 +104,26 @@ func on_race_started() -> void:
 ## quality in 0..1 (1 = pressed exactly on GO), or <0 for a missed window (no boost).
 func show_rocket_score(quality: float) -> void:
 	if quality < 0.0:
+		_rocket_rank = -1
 		return
-	var pct := int(round(quality * 100.0))
-	if quality >= 0.85:
-		_rocket_text = "%s  %d%%" % [tr("rocket_perfect"), pct]
-		_rocket_color = Color(0.55, 0.95, 1.0)
-	else:
-		_rocket_text = "%s  %d%%" % [tr("rocket_good"), pct]
-		_rocket_color = Color(0.65, 0.92, 0.62)
+	_rocket_rank = _rank_for(quality)
+	_rocket_color = RANK_COLORS[_rocket_rank]
 	_rocket_timer = ROCKET_HOLD
 	visible = true
 	queue_redraw()
+
+## Map a launch quality (0..1) onto a D/C/B/A/S rank. S is reserved for a near
+## frame-perfect launch, so it stays rare; every tier above D still grants a boost.
+func _rank_for(quality: float) -> int:
+	if quality >= 0.90:
+		return 4  # S
+	if quality >= 0.70:
+		return 3  # A
+	if quality >= 0.48:
+		return 2  # B
+	if quality >= 0.25:
+		return 1  # C
+	return 0      # D
 
 func hide_now() -> void:
 	visible = false
@@ -168,13 +191,56 @@ func _draw_glow(c: Vector2, col: Color, flash: float, gain: float = 1.0) -> void
 		draw_circle(c, r, Color(col.r, col.g, col.b, a))
 
 func _draw_rocket_score(cy: float) -> void:
-	var a := clampf(_rocket_timer / 0.6, 0.0, 1.0)  # fade out over the last 0.6 s
+	if _rocket_rank < 0:
+		return
+	var elapsed: float = ROCKET_HOLD - _rocket_timer
+	var fade: float = clampf(_rocket_timer / 0.6, 0.0, 1.0)        # fade over the last 0.6 s
+	var pop: float = 1.0 - clampf(elapsed / 0.26, 0.0, 1.0)        # quick scale-in on appear
+	var spec: float = RANK_SPECTACLE[_rocket_rank]
+	var col: Color = _rocket_color
+	var center := Vector2(size.x * 0.5, cy + DOT_RADIUS * 3.6)
+
+	# Spectacular backdrop for A/S: halo + expanding shock ring(s).
+	if spec > 0.0:
+		_draw_rank_spectacle(center, col, elapsed, fade, spec)
+
+	# A subtle breathing pulse (stronger on the spectacular ranks) plus the pop-in.
+	var pulse: float = 1.0 + sin(elapsed * 9.0) * 0.05 * spec + pop * 0.45
+	var fs: int = int(RANK_FONT[_rocket_rank] * pulse)
 	var font := ThemeDB.fallback_font
-	var fs := 30
-	var dim := font.get_string_size(_rocket_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
-	var pos := Vector2(size.x * 0.5 - dim.x * 0.5, cy + DOT_RADIUS * 2.6)
-	draw_string(font, pos, _rocket_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs,
-		Color(_rocket_color.r, _rocket_color.g, _rocket_color.b, a))
+	var letter: String = RANK_LETTERS[_rocket_rank]
+
+	# S shimmers through the spectrum; the others keep their flat rank colour.
+	var draw_col: Color = col
+	if _rocket_rank == 4:
+		draw_col = Color.from_hsv(fmod(elapsed * 0.7, 1.0), 0.40, 1.0).lerp(col, 0.35)
+	draw_col.a = fade
+
+	var dim := font.get_string_size(letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+	var pos := Vector2(center.x - dim.x * 0.5, center.y + fs * 0.36)
+
+	# Soft glow behind the glyph (offset copies), widening with the spectacle.
+	var glow := Color(col.r, col.g, col.b, fade * (0.18 + 0.30 * spec))
+	for ring: float in [3.0, 6.5]:
+		for ang: float in [0.0, PI * 0.5, PI, PI * 1.5]:
+			var off := Vector2(cos(ang), sin(ang)) * ring * (1.0 + spec)
+			draw_string(font, pos + off, letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, glow)
+	draw_string(font, pos, letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, draw_col)
+
+# Halo + expanding shock ring(s) behind a high-rank letter. `spec` (0..1) scales the
+# whole flourish; S (spec == 1) gets a second, offset ring.
+func _draw_rank_spectacle(c: Vector2, col: Color, elapsed: float, fade: float, spec: float) -> void:
+	for i in 4:
+		var rr: float = (44.0 + i * 24.0) * (1.0 + spec * 0.4)
+		var aa: float = (0.11 - i * 0.022) * fade * spec
+		if aa > 0.0:
+			draw_circle(c, rr, Color(col.r, col.g, col.b, aa))
+	var rings: int = 2 if spec >= 1.0 else 1
+	for k in rings:
+		var t: float = fmod(elapsed * 1.4 + float(k) * 0.5, 1.0)
+		var rr: float = 32.0 + t * 150.0 * (0.7 + spec)
+		var aa: float = (1.0 - t) * 0.5 * fade * spec
+		draw_arc(c, rr, 0.0, TAU, 48, Color(col.r, col.g, col.b, aa), 3.0, true)
 
 # ----------------------------------------------------------------------------
 # Tone synthesis: short sine with exponential decay, optional second harmonic.

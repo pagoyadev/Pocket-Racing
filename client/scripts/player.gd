@@ -4,12 +4,12 @@ extends RigidBody3D
 # lateral-grip caps, thresholds and boost magnitudes scale together so the FEEL is
 # preserved at half pace. MUST match the server.
 # Master pace multiplier: forces, launch & boost speeds and the lateral-grip caps
-# all derive from this one knob. ×4/3 bumps the whole pace by a third. MUST match
-# the server (lobby.rs SPEED_SCALE).
-const SPEED_SCALE        := 4.0 / 3.0
-const THROTTLE_FORCE     := 8_500.0 * SPEED_SCALE
-const REVERSE_FORCE      := 2_500.0 * SPEED_SCALE
-const BRAKE_FORCE        := 4_000.0 * SPEED_SCALE
+# all derive from this one knob. Each ×4/3 bumps the whole pace by a third. MUST
+# match the server (lobby.rs PACE_SCALE).
+const PACE_SCALE        := 16.0 / 9.0
+const THROTTLE_FORCE     := 8_500.0 * PACE_SCALE
+const REVERSE_FORCE      := 2_500.0 * PACE_SCALE
+const BRAKE_FORCE        := 4_000.0 * PACE_SCALE
 const BRAKE_MIN_SPEED    := 0.5
 const MOTION_DIRECTION_EPSILON := 0.25
 const MAX_TURN_RATE_GRIP := 1.2
@@ -25,15 +25,15 @@ const STEER_SMOOTH_RATE  := 8.0
 # acceleration, so the achievable turn rate is lat_accel/speed: pure grip washes
 # out at racing pace (the "anomaly"), while a drift's lower cap lets the slide
 # live. The break-loose collapse is gated to grip only.
-const GRIP_LAT_ACCEL     := 9.0 * SPEED_SCALE   # m/s² — holds gentle/slow turns, washes at speed
-const DRIFT_LAT_ACCEL    := 3.0 * SPEED_SCALE   # m/s² — low, so the drift slide lags and lives
+const GRIP_LAT_ACCEL     := 9.0 * PACE_SCALE   # m/s² — holds gentle/slow turns, washes at speed
+const DRIFT_LAT_ACCEL    := 3.0 * PACE_SCALE   # m/s² — low, so the drift slide lags and lives
 # Falling into drift couples ANGLE and EFFORT (see _drift_enter_threshold_deg):
 # gentle steering must build the full SLIP_BREAK_DEG of slide, cranking hard at
 # speed drops the bar to SLIP_BREAK_HARD_DEG. Mirrors lobby.rs.
 const SLIP_BREAK_DEG     := 18.0    # gentle steering: slip needed to fall into drift
 const SLIP_BREAK_HARD_DEG := 5.0    # full lock at speed: falls in almost at once
 const DRIFT_EFFORT_SPEED_REF := 6.0   # speed (m/s) at which the effort term saturates
-const SLIP_EXIT_DEG      := 4.0     # slide settles below this (key up) → back to grip
+const SLIP_EXIT_DEG      := 8.0     # slide settles below this (key up) → back to grip (wide: re-grips early)
 # Manual-drift initiation flick: drift key + a direction together snaps the yaw rate
 # hard at once for a sharp deliberate turn-in. Mirrors lobby.rs.
 const DRIFT_FLICK_RATE   := 3.6     # yaw rate (rad/s) the flick snaps to on the press edge
@@ -54,17 +54,20 @@ const BOOST_CHARGE_KNEE   := 0.667  # first 2/3 fill normally
 const BOOST_CHARGE_TOP_FACTOR := 0.25  # last third is degressive (down to 25% rate)
 const BOOST_CHARGE_DECAY  := 2.0
 const BOOST_CHARGE_MIN    := 0.15
-const BOOST_PEAK_BONUS    := 11.5 * SPEED_SCALE   # drift-boost overshoot above cruise
+const BOOST_PEAK_BONUS    := 11.5 * PACE_SCALE   # drift-boost overshoot above cruise
 const BOOST_DURATION      := 1.5
 const BOOST_ALIGN_THRESHOLD_COS := 0.9781476  # cos(12°)
 const BOOST_PENDING_TIMEOUT := 1.5
-const BOOST_SUSTAIN_FORCE  := 16_500.0 * SPEED_SCALE   # scales with the drive force
+const BOOST_SUSTAIN_FORCE  := 16_500.0 * PACE_SCALE   # scales with the drive force
 
 # Launch (rocket start) — server-authoritative; predicted here with the same rule.
-# A perfect launch (throttle down at GO) reaches LAUNCH_SPEED (≈ cruise + overshoot);
-# quality fades over the window. Mirrors lobby.rs LAUNCH_SPEED / LAUNCH_WINDOW.
-const ROCKET_WINDOW_S := 0.25
-const LAUNCH_SPEED    := 32.0 * SPEED_SCALE
+# Quality is graded on the SIGNED offset of the first throttle press from GO
+# (negative = pressed/held early, positive = late): quality = (1 - |off|/window)^k.
+# A true 100% is frame-precise and holding the gas early scores ~0. Mirrors lobby.rs
+# LAUNCH_SPEED / LAUNCH_WINDOW / LAUNCH_SHARPNESS.
+const ROCKET_WINDOW_S := 0.30
+const ROCKET_SHARPNESS := 2.0
+const LAUNCH_SPEED    := 32.0 * PACE_SCALE
 
 const PAD_BOOST_SCALE := 0.5   # mirror lobby.rs: scale track pad boosts to half speed
 
@@ -391,13 +394,21 @@ func apply_pad_boost(strength: float) -> void:
 		self.linear_velocity = Vector3(v.x + bv.x, v.y, v.z + bv.z)
 		boost_flash = true
 
-## Client prediction of the server-authoritative launch. `delta_t` = press time
-## minus GO; holding through GO counts as 0 (perfect). Propels the car to
-## LAUNCH_SPEED·quality. Returns quality in 0..1, or -1.0 if the window was missed
-## (no boost). The HUD shows this as a score.
+## Rocket-start quality in 0..1 from the signed press offset (s) relative to GO.
+## Mirrors lobby.rs::launch_quality — symmetric, steepened so 100% is frame-precise.
+func _launch_quality(offset: float) -> float:
+	var off := absf(offset)
+	if off >= ROCKET_WINDOW_S:
+		return 0.0
+	return pow(1.0 - off / ROCKET_WINDOW_S, ROCKET_SHARPNESS)
+
+## Client prediction of the server-authoritative launch. `delta_t` = first-press
+## time minus GO (signed: negative = pressed/held early, positive = late). Quality
+## peaks at delta_t == 0 and falls off symmetrically; pressing outside the window
+## (incl. holding the gas from the countdown) scores 0. Propels the car to
+## LAUNCH_SPEED·quality. Returns quality in 0..1, or -1.0 if no boost. HUD shows it.
 func try_rocket_start(delta_t: float) -> float:
-	var t := maxf(delta_t, 0.0)  # held through GO = 0
-	var quality := clampf(1.0 - t / ROCKET_WINDOW_S, 0.0, 1.0)
+	var quality := _launch_quality(delta_t)
 	if quality <= 0.0:
 		return -1.0
 	var forward_dir := -self.transform.basis.z

@@ -220,15 +220,29 @@ fn handle_command(cmd: LobbyCommand, lobbies: &mut HashMap<String, Lobby>, track
                 send_join_error(&tx_out, JoinError::InvalidName);
                 return;
             }
-            if lobbies.contains_key(&lobby_id) {
+            // A lobby is just a named room, not the property of a player. Re-using a
+            // name is allowed when the old room is empty (e.g. its creator just left
+            // and it hasn't been garbage-collected yet) or when the same player is
+            // re-making their own room — so quitting and creating again always works.
+            // Only a *different* player's still-populated lobby blocks the name.
+            if let Some(existing) = lobbies.get(&lobby_id) {
+                if existing.player_count() > 0 && existing.owner != nickname {
+                    sr_log!(
+                        trace,
+                        "LOBBY",
+                        "create rejected: id={} already exists (active)",
+                        lobby_id
+                    );
+                    send_join_error(&tx_out, JoinError::LobbyAlreadyExists);
+                    return;
+                }
                 sr_log!(
                     trace,
                     "LOBBY",
-                    "create rejected: id={} already exists",
+                    "create: replacing stale lobby id={}",
                     lobby_id
                 );
-                send_join_error(&tx_out, JoinError::LobbyAlreadyExists);
-                return;
+                lobbies.remove(&lobby_id);
             }
             if let Some(error) = validate_lobby_config(min_players, max_players) {
                 sr_log!(

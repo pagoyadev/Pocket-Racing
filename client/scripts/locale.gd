@@ -65,6 +65,7 @@ const STRINGS := {
 		"start_in": "Start in %d...",
 		"lap": "Lap %d / %d",
 		"finished": "Finished!",
+		"finish_in": "Race ends in %ds",
 		"race_finished": "Race finished!",
 		"could_not_join": "Could not join: %s",
 		# --- Join errors ---
@@ -78,8 +79,7 @@ const STRINGS := {
 		"err_unknown": "Unknown error: %s",
 		# --- HUD ---
 		"boost_ready": "BOOST READY",
-		"rocket_perfect": "PERFECT LAUNCH!",
-		"rocket_good": "GREAT LAUNCH!",
+		"hud_controls": "CONTROLS",
 		# --- Settings panel ---
 		"set_title": "SETTINGS",
 		"set_language": "LANGUAGE",
@@ -162,6 +162,7 @@ const STRINGS := {
 		"start_in": "Départ dans %d...",
 		"lap": "Tour %d / %d",
 		"finished": "Terminé !",
+		"finish_in": "Fin de course dans %ds",
 		"race_finished": "Course terminée !",
 		"could_not_join": "Impossible de rejoindre : %s",
 		# --- Join errors ---
@@ -175,8 +176,7 @@ const STRINGS := {
 		"err_unknown": "Erreur inconnue : %s",
 		# --- HUD ---
 		"boost_ready": "BOOST PRÊT",
-		"rocket_perfect": "DÉPART PARFAIT !",
-		"rocket_good": "DÉPART CANON !",
+		"hud_controls": "CONTRÔLES",
 		# --- Settings panel ---
 		"set_title": "PARAMÈTRES",
 		"set_language": "LANGUE",

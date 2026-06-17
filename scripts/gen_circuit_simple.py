@@ -113,7 +113,7 @@ def point_on(st, frac):
 
 def pad_on(st, frac, name, strength=22.0):
     x, z, yaw, fx, fz = point_on(st, frac)
-    prims.append({"type": "pad", "name": name, "size": [W * 0.7, 2.0, 26.0],
+    prims.append({"type": "pad", "name": name, "size": [12.0, 2.0, 16.0],
                   "position": [round(x, 3), 0.0, round(z, 3)],
                   "rotation_deg": [0.0, round(yaw, 3), 0.0],
                   "heading": [round(fx, 3), 0.0, round(fz, 3)], "boost_strength": strength})
