@@ -1,7 +1,7 @@
 {
   "id": "the_room",
   "name": "The Living Room",
-  "laps_to_win": 3.0,
+  "laps_to_win": 3,
   "environment": "living_room",
   "gates": [
     {
