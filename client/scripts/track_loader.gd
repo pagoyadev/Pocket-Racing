@@ -16,6 +16,8 @@ const PAD_CUSHION_COLOR   := Color(0.13, 0.40, 0.92)  # all pads are this blue
 const PAD_CHEVRON_COLOR   := Color(0.62, 0.82, 1.0)   # lighter blue arrows on top
 const HAZARD_DEFAULT_COLOR := Color(0.85, 0.15, 0.15)
 const DECOR_DEFAULT_COLOR := Color(0.35, 0.75, 1.0)
+const GATE_CHECKPOINT_COLOR := Color(0.35, 0.70, 1.0)   # checkpoints read cool blue
+const GATE_START_COLOR := Color(0.50, 0.95, 0.55)       # start/finish reads green
 
 const CURVE_SLAB_THICKNESS := 0.3
 const CURVE_DEFAULT_SEGMENTS := 12
@@ -48,6 +50,10 @@ static func build(parent: Node3D, track_def: Dictionary) -> Dictionary:
 			_:
 				push_warning("TrackLoader: unknown primitive type '%s'" % kind)
 
+	# Race gates get a simple visual arch (no collider) so they're readable on track.
+	for gate in track_def.get("gates", []):
+		_make_gate_arch(parent, gate)
+
 	return _spawn_from_gates(track_def)
 
 
@@ -64,6 +70,39 @@ static func _spawn_from_gates(track_def: Dictionary) -> Dictionary:
 				"spawn_y_rotation_deg": float(r[1]) if r.size() > 1 else 0.0,
 			}
 	return {"spawn_pos": Vector3.ZERO, "spawn_y_rotation_deg": 0.0}
+
+
+# A simple visual arch marking a race gate (start_finish / checkpoint): a thin
+# upright ring spanning the gate width, springing from the floor (its lower half
+# sits below y=0, hidden by the floor). Purely visual — no collider. The car
+# passes through the arch along the gate's forward axis.
+static func _make_gate_arch(parent: Node3D, gate: Dictionary) -> void:
+	var pos := _vec3_from_array(gate.get("position", []))
+	var rot := _vec3_from_array(gate.get("rotation_deg", []), Vector3.ZERO)
+	var hw := maxf(float(gate.get("half_width", 10.0)), 1.0)
+	var role := String(gate.get("role", "checkpoint"))
+
+	var root := Node3D.new()
+	root.name = "gate_%s" % role
+	root.position = Vector3(pos.x, 0.0, pos.z)  # spring from the floor
+	root.rotation_degrees = Vector3(0.0, rot.y, 0.0)
+	parent.add_child(root)
+
+	var tube := maxf(hw * 0.04, 0.5)
+	var torus := TorusMesh.new()
+	torus.inner_radius = hw - tube
+	torus.outer_radius = hw + tube
+	torus.rings = 24
+	var mi := MeshInstance3D.new()
+	mi.mesh = torus
+	mi.rotation = Vector3(PI * 0.5, 0.0, 0.0)  # stand the ring upright, hole along the gate forward
+	var is_start := role == "start_finish" or role == "start" or role == "finish"
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = GATE_START_COLOR if is_start else GATE_CHECKPOINT_COLOR
+	mat.roughness = 0.6
+	mat.metallic = 0.0
+	mi.material_override = mat
+	root.add_child(mi)
 
 
 static func _vec3_from_array(arr: Array, default: Vector3 = Vector3.ZERO) -> Vector3:

@@ -13,7 +13,7 @@ import json, math, sys
 W = 28.0          # track width (a touch wider, easy oval)
 T = 1.0
 WALL_T = 2.0
-WALL_H = 2.2      # LOW walls — see the sky over them
+WALL_H = 1.2      # LOW walls (≈ car height) — kept deliberately short
 R = 78.0          # bend radius
 A = 300.0         # straight length
 SEG = 16          # segments per 180° bend

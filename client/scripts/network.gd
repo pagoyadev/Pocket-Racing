@@ -41,8 +41,13 @@ func send(message: Variant):
 
 func connect_to_server() -> bool:
 	if self.socket:
-		printerr("Can't connect: already connected")
-		return false
+		var st := self.socket.get_ready_state()
+		if st == WebSocketPeer.STATE_OPEN or st == WebSocketPeer.STATE_CONNECTING:
+			printerr("Can't connect: already connected")
+			return false
+		# A previous socket is still closing/closed (e.g. just left a race): drop it
+		# and reconnect, so creating/joining right after quitting isn't blocked.
+		self.socket = null
 
 	var host = ""
 	if OS.has_feature("web"):

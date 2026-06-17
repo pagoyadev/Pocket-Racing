@@ -3,7 +3,7 @@ extends RigidBody3D
 # Speeds halved across the board to fit the tracks (see lobby.rs). All forces,
 # lateral-grip caps, thresholds and boost magnitudes scale together so the FEEL is
 # preserved at half pace. MUST match the server.
-const THROTTLE_FORCE     := 7_000.0
+const THROTTLE_FORCE     := 8_500.0
 const REVERSE_FORCE      := 2_500.0
 const BRAKE_FORCE        := 4_000.0
 const BRAKE_MIN_SPEED    := 0.5
@@ -47,7 +47,7 @@ const BOOST_CHARGE_RATE   := 0.45   # slower base fill (was 1.0): the whole bar 
 const BOOST_CHARGE_KNEE   := 0.667  # first 2/3 fill normally
 const BOOST_CHARGE_TOP_FACTOR := 0.25  # last third is degressive (down to 25% rate)
 const BOOST_CHARGE_DECAY  := 2.0
-const BOOST_CHARGE_MIN    := 0.30
+const BOOST_CHARGE_MIN    := 0.15
 const BOOST_PEAK_BONUS    := 11.5   # drift-boost overshoot above cruise (halved with speed)
 const BOOST_DURATION      := 1.5
 const BOOST_ALIGN_THRESHOLD_COS := 0.9781476  # cos(12°)
@@ -57,8 +57,8 @@ const BOOST_SUSTAIN_FORCE  := 16_500.0   # halved with the drive force
 # Launch (rocket start) — server-authoritative; predicted here with the same rule.
 # A perfect launch (throttle down at GO) reaches LAUNCH_SPEED (≈ cruise + overshoot);
 # quality fades over the window. Mirrors lobby.rs LAUNCH_SPEED / LAUNCH_WINDOW.
-const ROCKET_WINDOW_S := 0.5
-const LAUNCH_SPEED    := 27.0
+const ROCKET_WINDOW_S := 0.25
+const LAUNCH_SPEED    := 32.0
 
 const PAD_BOOST_SCALE := 0.5   # mirror lobby.rs: scale track pad boosts to half speed
 

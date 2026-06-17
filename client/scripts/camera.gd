@@ -6,6 +6,9 @@ const LOOK_HEIGHT   := 1.0
 
 const YAW_RATE_GRIP  := 25.0
 const YAW_RATE_DRIFT := 3.5
+# How fast the follow-rate eases between grip and drift, so entering/leaving a
+# drift doesn't snap the camera (was a hard switch).
+const DRIFT_CAM_BLEND_RATE := 6.0
 
 const POS_RATE := 18.0
 
@@ -20,6 +23,7 @@ var _look_target := Vector3.ZERO
 var _cam_yaw    := 0.0
 var _orb_yaw    := 0.0
 var _orb_pitch  := 0.0
+var _drift_blend := 0.0  # eased 0 (grip) → 1 (drift), smooths the follow-rate
 var _ready_snap := true
 
 @onready var _car: RigidBody3D = get_parent() as RigidBody3D
@@ -64,6 +68,7 @@ func _snap_to_car(yaw_offset: float = 0.0) -> void:
 	self._cam_yaw     = self._car.global_rotation.y + yaw_offset
 	self._orb_yaw     = 0.0
 	self._orb_pitch   = 0.0
+	self._drift_blend = 0.0
 	var behind  := Vector3(sin(self._cam_yaw), 0.0, cos(self._cam_yaw)) * FOLLOW_DIST
 	self._cam_pos     = self._car.global_position + behind + Vector3(0.0, FOLLOW_HEIGHT, 0.0)
 	self._look_target = self._car.global_position + Vector3(0.0, LOOK_HEIGHT, 0.0)
@@ -90,7 +95,9 @@ func _tick_yaw(delta: float) -> void:
 	var target_yaw := self._car.global_rotation.y + self._orb_yaw
 
 	var drifting := Input.is_action_pressed("Star Drift") and self._car.linear_velocity.length() > 3.0
-	var rate := YAW_RATE_DRIFT if drifting else YAW_RATE_GRIP
+	# Ease the follow-rate toward grip/drift instead of snapping it on enter/exit.
+	self._drift_blend = lerpf(self._drift_blend, 1.0 if drifting else 0.0, clamp(DRIFT_CAM_BLEND_RATE * delta, 0.0, 1.0))
+	var rate := lerpf(YAW_RATE_GRIP, YAW_RATE_DRIFT, self._drift_blend)
 
 	var diff := angle_difference(self._cam_yaw, target_yaw)
 	self._cam_yaw += diff * clamp(rate * delta, 0.0, 1.0)

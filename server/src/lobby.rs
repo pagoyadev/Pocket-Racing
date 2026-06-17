@@ -169,7 +169,7 @@ impl PhysicsWorld {
 // together so handling FEEL (accel curve, wash-out point, drift) is preserved at
 // half pace. Damping, yaw rates and slip angles are unchanged (turning is
 // independent of forward speed; tighter turning at lower speed fits the tracks).
-const THROTTLE_FORCE: f64 = 7_000.0;
+const THROTTLE_FORCE: f64 = 8_500.0;
 const REVERSE_FORCE: f64 = 2_500.0;
 const BRAKE_FORCE: f64 = 4_000.0;
 const BRAKE_MIN_SPEED: f64 = 0.5;
@@ -213,13 +213,13 @@ const NORMAL_LINEAR_DAMPING: f64 = 0.3;
 const DRIFT_LINEAR_DAMPING: f64 = 0.18;
 const DRIFT_MIN_SPEED: f64 = 1.5;
 
-// Cruise speed is THROTTLE_FORCE / (mass·damping) = 7000 / (1000·0.3) ≈ 23 m/s.
+// Cruise speed is THROTTLE_FORCE / (mass·damping) = 8500 / (1000·0.3) ≈ 28 m/s.
 // The launch (rocket start) is server-authoritative: when throttle is first down at
 // GO, the car is propelled to LAUNCH_SPEED·quality, where quality falls off over
 // LAUNCH_WINDOW. A perfect launch slightly OVERSHOOTS cruise (a real head start) —
 // the old client-only bonus only reached ~half cruise, so it felt like a slowdown.
-const LAUNCH_WINDOW: f64 = 0.5; // seconds after GO; quality = 1 - t/window (held at GO = 1.0)
-const LAUNCH_SPEED: f64 = 27.0; // perfect-launch speed (≈ cruise + overshoot)
+const LAUNCH_WINDOW: f64 = 0.25; // seconds after GO; quality = 1 - t/window (held at GO = 1.0) — tight: nailing 100% is precise
+const LAUNCH_SPEED: f64 = 32.0; // perfect-launch speed (≈ cruise + overshoot)
 const PAD_BOOST_SCALE: f64 = 0.5; // scales track pad-boost strengths to the halved speeds
 
 // Charge fills the bar at full rate up to BOOST_CHARGE_KNEE (~2/3), then tapers to
@@ -229,7 +229,7 @@ const BOOST_CHARGE_RATE: f64 = 0.45; // slower base fill (was 1.0): the whole ba
 const BOOST_CHARGE_KNEE: f64 = 0.667; // first 2/3 fill normally
 const BOOST_CHARGE_TOP_FACTOR: f64 = 0.25; // last third is degressive (down to 25% rate)
 const BOOST_CHARGE_DECAY: f64 = 2.0;
-const BOOST_CHARGE_MIN: f64 = 0.30;
+const BOOST_CHARGE_MIN: f64 = 0.15;
 const BOOST_PEAK_BONUS: f64 = 11.5; // drift-boost overshoot above cruise (halved with speed)
 const BOOST_DURATION: f64 = 1.5;
 const BOOST_ALIGN_THRESHOLD_COS: f64 = 0.9781476; // cos(12°)

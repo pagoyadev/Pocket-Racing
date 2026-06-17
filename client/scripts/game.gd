@@ -90,9 +90,10 @@ static func make_engine_stream(model_id: String = DEFAULT_CAR_MODEL) -> AudioStr
 	_engine_streams[model_id] = wav
 	return wav
 
-# Tyre-screech for drifting: low-passed noise mixed with two squealing tones
-# and a fast amplitude wobble. Tonal parts are integer-periodic over the buffer;
-# the noise tail is cross-faded into the head to keep the loop click-free.
+# Low tyre scrub for drifting: heavily low-passed noise (a deep rumble) under a
+# low two-tone growl and a slow amplitude wobble — deliberately grave, not a high
+# squeal. Tonal parts are integer-periodic over the buffer; the noise tail is
+# cross-faded into the head to keep the loop click-free.
 static func make_drift_stream() -> AudioStreamWAV:
 	if _drift_stream != null:
 		return _drift_stream
@@ -105,10 +106,10 @@ static func make_drift_stream() -> AudioStreamWAV:
 	for i in sample_count:
 		var t := float(i) / float(AUDIO_RATE)
 		var n := rng.randf() * 2.0 - 1.0
-		lp += 0.25 * (n - lp)
-		var tone := sin(TAU * 2200.0 * t) * 0.5 + sin(TAU * 3300.0 * t) * 0.3
-		var wob := 0.7 + 0.3 * sin(TAU * 18.0 * t)
-		raw[i] = (lp * 0.8 + tone * 0.5) * wob
+		lp += 0.08 * (n - lp)  # low cutoff → deep rumble instead of hiss
+		var tone := sin(TAU * 80.0 * t) * 0.5 + sin(TAU * 120.0 * t) * 0.25
+		var wob := 0.78 + 0.22 * sin(TAU * 9.0 * t)
+		raw[i] = (lp * 2.0 + tone * 0.45) * wob
 	var fade := 512
 	for j in fade:
 		var a := float(j) / float(fade)
@@ -533,7 +534,10 @@ func is_valid_name(name_to_check: String) -> bool:
 	return self.regex.search(name_to_check) != null
 
 func switch_mode(next_mode: Mode, server_up: bool):
-	assert(next_mode != self.mode)
+	# A socket-close can fire a redundant transition (e.g. WELCOME_PAGE → WELCOME_PAGE);
+	# ignore it rather than asserting (which would halt a debug build).
+	if next_mode == self.mode:
+		return
 
 	var leaving_track := self.mode == Mode.IN_RACE || self.mode == Mode.LOBBY_INTERMISSION || self.mode == Mode.SPECTATOR
 	if leaving_track && next_mode == Mode.WELCOME_PAGE:

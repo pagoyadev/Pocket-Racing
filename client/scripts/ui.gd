@@ -110,6 +110,25 @@ func _ready() -> void:
 	_style_info_label()
 	_setup_lobby_column_sizes()
 	_apply_locale()
+	_apply_mobile_layout()
+
+# Mobile (web mobile) has a narrow, often portrait viewport; the menu panels are
+# sized for a desktop landscape window (the central HBox is 1080 wide) and overflow,
+# pushing content off-screen. Stack the online menu vertically, drop the fixed
+# widths, shrink the car preview and keep the lobby list usable. Gated to
+# Game.is_mobile() so desktop is untouched. First pass — tune from a real device.
+func _apply_mobile_layout() -> void:
+	if not Game.is_mobile():
+		return
+	var container := $OnlineMenu/Center/Container as BoxContainer
+	container.vertical = true
+	container.custom_minimum_size = Vector2.ZERO
+	container.add_theme_constant_override("separation", 12)
+	self.preview_slot.custom_minimum_size = Vector2(0, 120)
+	($OnlineMenu/Center/Container/PilotPanel as Control).custom_minimum_size = Vector2.ZERO
+	($OnlineMenu/Center/Container/CoursesPanel as Control).custom_minimum_size = Vector2.ZERO
+	self.lobbies_list.custom_minimum_size = Vector2(0, 200)
+	($IntermissionMenu/Center/Panel as Control).custom_minimum_size = Vector2.ZERO
 
 func _setup_car_preview() -> void:
 	var svc := SubViewportContainer.new()

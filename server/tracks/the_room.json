@@ -98,38 +98,38 @@
     },
 
     {
-      "type": "decor", "name": "plant_ne", "model": "plant", "collide": true,
+      "type": "decor", "name": "plant_ne", "model": "plant", "collide": false,
       "size": [78.0, 124.0, 78.0], "position": [210.0, 62.0, -200.0],
       "color": [0.26, 0.55, 0.30]
     },
     {
-      "type": "decor", "name": "plant_sw", "model": "plant", "collide": true,
+      "type": "decor", "name": "plant_sw", "model": "plant", "collide": false,
       "size": [78.0, 124.0, 78.0], "position": [-210.0, 62.0, 200.0],
       "color": [0.26, 0.55, 0.30]
     },
     {
-      "type": "decor", "name": "lamp_nw", "model": "lamp", "collide": true,
+      "type": "decor", "name": "lamp_nw", "model": "lamp", "collide": false,
       "size": [86.0, 168.0, 86.0], "position": [-205.0, 84.0, -200.0],
       "color": [0.94, 0.86, 0.62]
     },
     {
-      "type": "decor", "name": "mug_se", "model": "mug", "collide": true,
+      "type": "decor", "name": "mug_se", "model": "mug", "collide": false,
       "size": [72.0, 84.0, 72.0], "position": [205.0, 42.0, 150.0],
       "color": [0.30, 0.55, 0.75]
     },
 
     {
-      "type": "decor", "name": "chicane_die", "model": "dice", "collide": true,
+      "type": "decor", "name": "chicane_die", "model": "dice", "collide": false,
       "size": [74.0, 74.0, 74.0], "position": [0.0, 37.0, 198.0],
       "color": [0.95, 0.95, 0.93]
     },
     {
-      "type": "decor", "name": "chicane_mug", "model": "mug", "collide": true,
+      "type": "decor", "name": "chicane_mug", "model": "mug", "collide": false,
       "size": [72.0, 84.0, 72.0], "position": [40.0, 42.0, -198.0],
       "color": [0.85, 0.45, 0.30]
     },
     {
-      "type": "decor", "name": "chicane_ball", "model": "ball", "collide": true,
+      "type": "decor", "name": "chicane_ball", "model": "ball", "collide": false,
       "size": [58.0, 58.0, 58.0], "position": [-120.0, 29.0, 196.0],
       "color": [0.90, 0.32, 0.34]
     },

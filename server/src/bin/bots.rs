@@ -332,6 +332,13 @@ async fn drive_bot(
     });
 
     let mut tick: u64 = 0;
+    // Per-bot start handicap: hold the throttle for a short, bot-specific delay
+    // after GO. Bots run server-side with no input latency, so without this they'd
+    // get a near-perfect launch every time and out-drag a networked human; this
+    // makes them miss part of the launch window, so a human's perfect start wins.
+    let launch_delay =
+        std::time::Duration::from_millis(60 + name.bytes().map(|b| b as u64).sum::<u64>() % 160);
+    let mut race_start: Option<std::time::Instant> = None;
     loop {
         sleep(std::time::Duration::from_millis(50)).await;
         if disconnected.load(std::sync::atomic::Ordering::Relaxed) {
@@ -340,10 +347,15 @@ async fn drive_bot(
         }
         let snap = snapshot.lock().unwrap().clone();
         if !snap.racing {
+            race_start = None;
             continue;
         }
+        let started = *race_start.get_or_insert_with(std::time::Instant::now);
         tick += 1;
-        let (throttle, sl, sr, drift) = brain.decide(&snap, tick);
+        let (mut throttle, sl, sr, drift) = brain.decide(&snap, tick);
+        if started.elapsed() < launch_delay {
+            throttle = false; // deliberately miss part of the launch window
+        }
         if write
             .send(to_msg(&ClientMessage::State {
                 throttle,
