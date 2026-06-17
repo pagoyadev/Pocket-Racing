@@ -174,9 +174,12 @@ static func _make_pad(parent: Node3D, prim: Dictionary) -> void:
 
 	# The cushion sits at the pad's own origin (no hardcoded vertical offset): the
 	# level data position is where the pad renders, so the editor is WYSIWYG. The
-	# chevrons additionally yaw to point along `heading` within the pad frame.
+	# chevrons yaw to point along the WORLD `heading` (the race direction). We
+	# subtract the root's own yaw so the arrow tracks `heading` regardless of how
+	# rotation_deg orients the (symmetric) pad box — otherwise a rotated pad's
+	# chevrons get double-rotated and point backwards.
 	var visual := Node3D.new()
-	visual.rotation.y = atan2(heading.x, heading.z)
+	visual.rotation.y = atan2(heading.x, heading.z) - deg_to_rad(rot.y)
 	root.add_child(visual)
 
 	# Local pad footprint (chevron-forward axis = local Z).

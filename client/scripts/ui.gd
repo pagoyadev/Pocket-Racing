@@ -82,12 +82,24 @@ func _ready() -> void:
 	_apply_lobby_columns()
 
 	self.bindings_label = Label.new()
-	self.bindings_label.position = Vector2(12, 12)
+	self.bindings_label.position = Vector2(16, 16)
 	self.bindings_label.text = _build_bindings_text()
-	self.bindings_label.add_theme_color_override("font_color", Color(0.82, 0.87, 0.93, 0.85))
+	self.bindings_label.add_theme_color_override("font_color", Color(0.90, 0.94, 0.99, 0.97))
 	self.bindings_label.add_theme_color_override("font_outline_color", Color(0.03, 0.04, 0.06, 0.95))
-	self.bindings_label.add_theme_constant_override("outline_size", 4)
-	self.bindings_label.add_theme_font_size_override("font_size", 14)
+	self.bindings_label.add_theme_constant_override("outline_size", 3)
+	self.bindings_label.add_theme_constant_override("line_spacing", 5)
+	self.bindings_label.add_theme_font_size_override("font_size", 16)
+	# A rounded translucent card with an accent edge — readable over any track.
+	var bsb := StyleBoxFlat.new()
+	bsb.bg_color = Color(0.08, 0.095, 0.12, 0.82)
+	bsb.set_corner_radius_all(10)
+	bsb.border_width_left = 3
+	bsb.border_color = ACCENT
+	bsb.content_margin_left = 18.0
+	bsb.content_margin_right = 22.0
+	bsb.content_margin_top = 13.0
+	bsb.content_margin_bottom = 13.0
+	self.bindings_label.add_theme_stylebox_override("normal", bsb)
 	self.bindings_label.visible = false
 	add_child(self.bindings_label)
 
@@ -278,12 +290,14 @@ func _on_create_tab_toggled(on: bool) -> void:
 		self.create_tab_button.set_pressed_no_signal(true)
 
 func _build_bindings_text() -> String:
-	var lines: Array[String] = []
+	var lines: Array[String] = [tr("hud_controls")]
 	for action in Bindings.ACTIONS:
+		if action in Bindings.LOOK_ACTIONS:
+			continue  # look/camera bindings stay in Settings, not on the in-game HUD
 		var code := Bindings.get_key(action)
 		if code == 0:
 			continue
-		lines.append("%s: %s" % [tr("act_" + action), Bindings.key_label(code)])
+		lines.append("%s   %s" % [Bindings.key_label(code), tr("act_" + action)])
 	return "\n".join(lines)
 
 func _apply_lobby_columns() -> void:
@@ -740,6 +754,13 @@ func _cancel_rebind() -> void:
 	(_binding_rows[action]["key"] as Button).text = Bindings.key_label(Bindings.get_key(action))
 
 func _input(event: InputEvent) -> void:
+	# Gamepad accept on a focused single-digit numeric field → open the number picker.
+	if event is InputEventJoypadButton and event.is_action_pressed("ui_accept"):
+		var focus := get_viewport().gui_get_focus_owner()
+		if focus != null and _is_number_picker_field(focus):
+			get_viewport().set_input_as_handled()
+			_open_number_picker(focus as LineEdit)
+			return
 	if _rebinding_action == "":
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -756,9 +777,18 @@ func _input(event: InputEvent) -> void:
 
 func _process(_delta: float) -> void:
 	self.join_button.disabled = self.lobbies_list.get_selected() == null
-	var in_race: bool = %Game.mode == Game.Mode.IN_RACE
-	self.bindings_label.visible = in_race and not %Game.paused and not Game.is_mobile()
-	if %Game.mode == Game.Mode.IN_RACE or %Game.mode == Game.Mode.SPECTATOR:
+	# Show the controls card whenever the car is on track — racing OR the on-track
+	# pre-race countdown (LOBBY_INTERMISSION with the lobby menu hidden) — and keep
+	# it up through pause. Only hidden on mobile (touch controls replace it).
+	var on_track: bool = %Game.mode == Game.Mode.IN_RACE \
+		or (%Game.mode == Game.Mode.LOBBY_INTERMISSION and not self.intermission_menu.visible)
+	self.bindings_label.visible = on_track and not Game.is_mobile()
+	# Pause must be reachable any time the car is on track — racing, spectating, OR
+	# the on-track pre-race countdown (so you can quit during the lights). The lobby
+	# waiting screen (intermission menu visible) keeps its own navigation instead.
+	var can_pause: bool = %Game.mode == Game.Mode.IN_RACE or %Game.mode == Game.Mode.SPECTATOR \
+		or (%Game.mode == Game.Mode.LOBBY_INTERMISSION and not self.intermission_menu.visible)
+	if can_pause:
 		if Input.is_action_just_released("Pause"):
 			self.play_menu_panel.visible = ! self.play_menu_panel.visible
 			# Focus the panel on open so a controller's D-pad can navigate it.
@@ -911,6 +941,30 @@ func refresh(lobby_infos: Array):
 
 func _on_refresh_list_button_pressed() -> void:
 	%Game.switch_mode(Game.Mode.FETCH_LOBBIES, false)
+
+# Controller-friendly number entry for the single-digit player-count fields: a
+# popup list of the valid numbers, navigable with the D-pad and the accept button.
+# Opened from _input() when the gamepad accept button is pressed on a focused field
+# (typing a digit is awkward on a pad; keyboard/mouse keep typing as before).
+func _open_number_picker(field: LineEdit) -> void:
+	var lo: int = self.game_node.MIN_LIMIT_PLAYERS
+	var hi: int = self.game_node.MAX_LIMIT_PLAYERS
+	var pm := PopupMenu.new()
+	for n in range(lo, hi + 1):
+		pm.add_item(str(n), n)
+	add_child(pm)
+	pm.id_pressed.connect(func(id: int) -> void:
+		field.text = str(id)
+		_filter_digit_field(field.text, field)  # re-run the clamp/sanitise
+	)
+	pm.popup_hide.connect(pm.queue_free)
+	pm.reset_size()
+	var at := field.get_screen_position() + Vector2(0.0, field.size.y + 2.0)
+	pm.position = Vector2i(at)
+	pm.popup()
+
+func _is_number_picker_field(node: Control) -> bool:
+	return node == self.min_players_field or node == self.max_players_field
 
 func get_min_players() -> int:
 	return int(self.min_players_field.text)

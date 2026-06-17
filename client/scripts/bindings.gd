@@ -24,6 +24,16 @@ const ACTIONS := [
 	"View Down",
 ]
 
+# Look/camera actions: still rebindable in Settings, but hidden from the in-game
+# controls overlay (the HUD only lists the driving inputs).
+const LOOK_ACTIONS := [
+	"Back View",
+	"View Left",
+	"View Right",
+	"View Up",
+	"View Down",
+]
+
 var _defaults := {}  # action -> physical keycode
 
 func _enter_tree() -> void:
