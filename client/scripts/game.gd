@@ -246,6 +246,7 @@ class MessageParser:
 			"nickname": raw["nickname"],
 			"racing": raw["racing"],
 			"laps": int(raw.get("laps", 0)),
+			"rank": int(raw.get("rank", 0)),
 			"position": Vector3(pos["x"], pos["y"], pos["z"]),
 			"rotation": Quaternion(rot["x"], rot["y"], rot["z"], rot["w"]),
 			"color": Color(col["x"], col["y"], col["z"]),
@@ -388,6 +389,7 @@ class OpponentManager:
 
 var _debug_enabled := false
 var _debug_hud: Label = null
+var _ranking_hud: Label = null
 @export var MIN_LIMIT_PLAYERS := 1
 @export var MAX_LIMIT_PLAYERS := 6
 @export var MIN_PLAYERS_DEFAULT = 2
@@ -485,6 +487,32 @@ func _update_debug_hud() -> void:
 	self._debug_hud.text = "spd %5.1f m/s\nslip %+6.1f°\nyaw %+5.2f\ngrip→drift %4.2f\ncharge %4.2f  %s%s" % [
 		t["speed"], t["slip_deg"], t["yaw_rate"], t["grip_blend"], t["charge"],
 		t["boost"], "" if t["grounded"] else "  (air)"]
+
+# Live leaderboard in the top-right corner: players ordered by server-assigned
+# rank, the local player highlighted. Built lazily on first race update.
+func _update_race_ranking(entries: Array) -> void:
+	if entries.is_empty():
+		if self._ranking_hud:
+			self._ranking_hud.visible = false
+		return
+	if self._ranking_hud == null:
+		self._ranking_hud = Label.new()
+		self._ranking_hud.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 12)
+		self._ranking_hud.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+		self._ranking_hud.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		self._ranking_hud.add_theme_color_override("font_color", Color(0.95, 0.96, 1.0))
+		self._ranking_hud.add_theme_font_size_override("font_size", 16)
+		self._ranking_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		%UI.add_child(self._ranking_hud)
+	entries.sort_custom(func(a, b): return a["rank"] < b["rank"])
+	var lines: Array[String] = [tr("hud_ranking")]
+	for e in entries:
+		var line := "%d. %s" % [e["rank"], e["nickname"]]
+		if e["is_self"]:
+			line = "▶ " + line
+		lines.append(line)
+	self._ranking_hud.text = "\n".join(lines)
+	self._ranking_hud.visible = true
 
 func _notification(what):
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
@@ -591,6 +619,9 @@ func switch_mode(next_mode: Mode, server_up: bool):
 
 	if self._opponents:
 		self._opponents.set_engines_paused(next_mode != Mode.IN_RACE and next_mode != Mode.SPECTATOR)
+
+	if self._ranking_hud and next_mode != Mode.IN_RACE and next_mode != Mode.SPECTATOR:
+		self._ranking_hud.visible = false
 
 	self.mode = next_mode
 
@@ -845,10 +876,16 @@ func _handle_lobby_message(message: Dictionary) -> void:
 				])
 				%UI.set_intermission_players_list(players)
 			var _spectator_target_set := false
+			var ranking_entries: Array = []
 			for raw in players:
 				var player = MessageParser.parse_player(raw)
 				if !player["racing"]:
 					continue
+				ranking_entries.append({
+					"rank": player["rank"],
+					"nickname": player["nickname"],
+					"is_self": player["nickname"] == %UI.get_nickname(),
+				})
 				if player["nickname"] == %UI.get_nickname():
 					if self.mode == Mode.IN_RACE:
 						if self._ghost:
@@ -870,6 +907,8 @@ func _handle_lobby_message(message: Dictionary) -> void:
 					if self.mode == Mode.SPECTATOR and not _spectator_target_set:
 						_spectator_target = player["position"]
 						_spectator_target_set = true
+			if self.mode == Mode.IN_RACE or self.mode == Mode.SPECTATOR:
+				_update_race_ranking(ranking_entries)
 		elif state.has("WaitingForPlayers"):
 			var missing = int(state["WaitingForPlayers"])
 			%UI.set_info_label(tr("waiting_one" if missing == 1 else "waiting_many") % missing)

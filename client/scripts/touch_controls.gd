@@ -74,7 +74,7 @@ func _is_active() -> bool:
 	# intermission menu is up, so the controls stay hidden there instead of covering
 	# it; they appear once the track is revealed, still in time to hold throttle for
 	# the rocket-start.
-	var on_track := _game.mode == Game.Mode.IN_RACE
+	var on_track :bool = _game.mode == Game.Mode.IN_RACE
 	if _game.mode == Game.Mode.LOBBY_INTERMISSION:
 		var menu := _game.get_node_or_null("UI/IntermissionMenu")
 		on_track = menu != null and not menu.visible

@@ -62,8 +62,8 @@ const ACCENT := Color(0.95, 0.6, 0.23)
 const ACCENT_BRIGHT := Color(1.0, 0.78, 0.36)
 
 # App identity. Moved off the main page into the About panel.
-const APP_VERSION := "v1.0.0 rc"
-const APP_BUILD := "2026-06-16"
+const APP_VERSION := "v1.0.0 rc5"
+const APP_BUILD := "2026-06-19"
 const APP_REPO := "pagoyadev/Pocket-Racing"
 const APP_REPO_URL := "https://github.com/pagoyadev/Pocket-Racing"
 

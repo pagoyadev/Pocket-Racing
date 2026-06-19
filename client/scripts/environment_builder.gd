@@ -38,6 +38,12 @@ static func _root_with_env(bg: Color, ambient: Color, ambient_energy: float) -> 
 	env.ambient_light_color = ambient
 	env.ambient_light_energy = ambient_energy
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	# Subtle bloom, gated above 1.0 so only emissive/bright surfaces (boost pads,
+	# neon decor, lamps) glow — flat-coloured walls stay crisp.
+	env.glow_enabled = true
+	env.glow_intensity = 0.5
+	env.glow_bloom = 0.05
+	env.glow_hdr_threshold = 1.0
 	var wenv := WorldEnvironment.new()
 	wenv.name = "WorldEnvironment"
 	wenv.environment = env

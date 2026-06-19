@@ -362,6 +362,7 @@ async fn drive_bot(
                 steer_left: sl,
                 steer_right: sr,
                 drift,
+                respawn: false,
             }))
             .await
             .is_err()

@@ -185,7 +185,7 @@
       "type": "decor",
       "name": "baseboard_west",
       "model": "panel",
-      "collide": false,
+      "collide": true,
       "size": [
         10.0,
         24.0,
@@ -206,7 +206,7 @@
       "type": "decor",
       "name": "baseboard_east",
       "model": "panel",
-      "collide": false,
+      "collide": true,
       "size": [
         10.0,
         24.0,
@@ -227,7 +227,7 @@
       "type": "decor",
       "name": "baseboard_north",
       "model": "panel",
-      "collide": false,
+      "collide": true,
       "size": [
         490.0,
         24.0,
@@ -248,7 +248,7 @@
       "type": "decor",
       "name": "baseboard_south",
       "model": "panel",
-      "collide": false,
+      "collide": true,
       "size": [
         490.0,
         24.0,
@@ -353,7 +353,7 @@
       "type": "decor",
       "name": "plant_ne",
       "model": "plant",
-      "collide": false,
+      "collide": true,
       "size": [
         78.0,
         124.0,
@@ -374,7 +374,7 @@
       "type": "decor",
       "name": "plant_sw",
       "model": "plant",
-      "collide": false,
+      "collide": true,
       "size": [
         78.0,
         124.0,
@@ -395,7 +395,7 @@
       "type": "decor",
       "name": "lamp_nw",
       "model": "lamp",
-      "collide": false,
+      "collide": true,
       "size": [
         86.0,
         168.0,
@@ -416,7 +416,7 @@
       "type": "decor",
       "name": "mug_se",
       "model": "mug",
-      "collide": false,
+      "collide": true,
       "size": [
         50.0,
         84.0,
@@ -437,7 +437,7 @@
       "type": "decor",
       "name": "chicane_die",
       "model": "dice",
-      "collide": false,
+      "collide": true,
       "size": [
         44.0,
         44.0,
@@ -458,7 +458,7 @@
       "type": "decor",
       "name": "chicane_mug",
       "model": "mug",
-      "collide": false,
+      "collide": true,
       "size": [
         115.400421142578,
         37.4720497131348,
@@ -479,7 +479,7 @@
       "type": "decor",
       "name": "chicane_ball",
       "model": "ball",
-      "collide": false,
+      "collide": true,
       "size": [
         40.0,
         40.0,
@@ -500,7 +500,7 @@
       "type": "decor",
       "name": "book_floor_e",
       "model": "book",
-      "collide": false,
+      "collide": true,
       "size": [
         64.0,
         15.0,
@@ -526,7 +526,7 @@
       "type": "decor",
       "name": "book_floor_w",
       "model": "book",
-      "collide": false,
+      "collide": true,
       "size": [
         64.0,
         15.0,
@@ -552,7 +552,7 @@
       "type": "decor",
       "name": "eraser_n",
       "model": "eraser",
-      "collide": false,
+      "collide": true,
       "size": [
         40.0,
         15.0,
@@ -578,7 +578,7 @@
       "type": "decor",
       "name": "crayon_corner",
       "model": "crayon",
-      "collide": false,
+      "collide": true,
       "size": [
         20.0,
         96.0,

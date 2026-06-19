@@ -524,6 +524,7 @@ async fn state_message_on_pre_join_socket_closes_connection() {
         steer_left: 0.0,
         steer_right: 0.0,
         drift: false,
+        respawn: false,
     };
     ws.send(Message::Text(serde_json::to_string(&msg).unwrap().into()))
         .await

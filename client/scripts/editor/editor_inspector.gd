@@ -106,6 +106,7 @@ func _build_primitive_fields() -> void:
 
 	if t == "decor":
 		_add_text_row("Modèle", String(_item.data.get("model", "")), func(s): _set_key("model", s))
+		_add_bool_row("Collision", _item.data.get("collide", true) != false, func(on): _set_key("collide", on))
 
 func _build_gate_fields() -> void:
 	_add_header("Portail — %s" % _role_fr(String(_item.data.get("role", "checkpoint"))))
@@ -290,6 +291,13 @@ func _add_num_row(label: String, key: String, minv: float, maxv: float, step: fl
 	var sp := _make_spin(cur, step, minv, maxv)
 	sp.value_changed.connect(func(v): _on_num_changed(key, v, is_int))
 	row.add_child(sp)
+
+func _add_bool_row(label: String, value: bool, on_change: Callable) -> void:
+	var row := _labeled_row(_obj_box, label)
+	var cb := CheckBox.new()
+	cb.button_pressed = value
+	cb.toggled.connect(func(on): on_change.call(on))
+	row.add_child(cb)
 
 func _add_color_row(label: String, key: String) -> void:
 	var row := _labeled_row(_obj_box, label)

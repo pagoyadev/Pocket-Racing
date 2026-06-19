@@ -23,6 +23,9 @@ pub struct PlayerState {
     pub nickname: String,
     pub racing: bool,
     pub laps: u8,
+    /// Live race position (1 = leading). 0 before the race assigns one.
+    #[serde(default)]
+    pub rank: u8,
     pub position: Vec3Proto,
     pub rotation: QuatProto,
     pub color: ColorProto,
@@ -85,6 +88,10 @@ pub enum ClientMessage {
         steer_left: f64,
         steer_right: f64,
         drift: bool,
+        /// Edge-triggered request to respawn the car at its last crossed
+        /// checkpoint (or the start). Defaulted so older clients still parse.
+        #[serde(default)]
+        respawn: bool,
     },
 }
 
@@ -192,11 +199,13 @@ mod tests {
                 steer_left,
                 steer_right,
                 drift,
+                respawn,
             } => {
                 assert!(throttle);
                 assert_eq!(steer_left, 0.5);
                 assert_eq!(steer_right, 0.25);
                 assert!(!drift);
+                assert!(!respawn); // omitted in JSON → serde default
             }
             _ => panic!("expected State variant"),
         }

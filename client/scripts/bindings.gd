@@ -16,6 +16,7 @@ const ACTIONS := [
 	"Steering Left",
 	"Steering Right",
 	"Drift",
+	"Respawn",
 	"Pause",
 	"Back View",
 	"View Left",

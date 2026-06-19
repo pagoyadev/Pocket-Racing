@@ -120,6 +120,10 @@ var _drift_db := AUDIO_SILENT_DB
 
 var network_timer := 0.0
 const NETWORK_SEND_INTERVAL := 0.05
+# Latched respawn press: set when the key is tapped, sent (once) on the next state
+# packet, so a quick tap between 50 ms sends is never dropped. The server edge-
+# detects it and teleports the car to its last checkpoint.
+var _respawn_pending := false
 
 @onready var network = get_tree().get_first_node_in_group("Network")
 @onready var _game := get_node("/root/Root/Game")
@@ -219,6 +223,8 @@ func _physics_process(delta: float) -> void:
 	_steer_input = move_toward(_steer_input, steer_raw, STEER_SMOOTH_RATE * delta)
 	var steer := _steer_input
 	var drift_input := Input.is_action_pressed("Drift")
+	if Input.is_action_just_pressed("Respawn"):
+		_respawn_pending = true
 
 	var speed := self.linear_velocity.length()
 
@@ -356,9 +362,11 @@ func _physics_process(delta: float) -> void:
 				"throttle":    throttle,
 				"steer_left":  max(-steer, 0.0),
 				"steer_right": max(steer, 0.0),
-				"drift":       drift_input
+				"drift":       drift_input,
+				"respawn":     _respawn_pending
 			}
 		})
+		_respawn_pending = false
 
 ## Live driving telemetry for the F3 debug HUD (see game.gd). Read-only snapshot.
 func get_telemetry() -> Dictionary:

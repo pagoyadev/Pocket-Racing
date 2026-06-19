@@ -80,6 +80,7 @@ const STRINGS := {
 		# --- HUD ---
 		"boost_ready": "BOOST READY",
 		"hud_controls": "CONTROLS",
+		"hud_ranking": "RANKING",
 		# --- Settings panel ---
 		"set_title": "SETTINGS",
 		"set_language": "LANGUAGE",
@@ -93,6 +94,7 @@ const STRINGS := {
 		"act_Steering Left": "Steer left",
 		"act_Steering Right": "Steer right",
 		"act_Drift": "Drift",
+		"act_Respawn": "Respawn",
 		"act_Pause": "Pause",
 		"act_Back View": "Look back",
 		"act_View Left": "Look left",
@@ -177,6 +179,7 @@ const STRINGS := {
 		# --- HUD ---
 		"boost_ready": "BOOST PRÊT",
 		"hud_controls": "CONTRÔLES",
+		"hud_ranking": "CLASSEMENT",
 		# --- Settings panel ---
 		"set_title": "PARAMÈTRES",
 		"set_language": "LANGUE",
@@ -190,6 +193,7 @@ const STRINGS := {
 		"act_Steering Left": "Tourner à gauche",
 		"act_Steering Right": "Tourner à droite",
 		"act_Drift": "Drift",
+		"act_Respawn": "Réapparaître",
 		"act_Pause": "Pause",
 		"act_Back View": "Regard arrière",
 		"act_View Left": "Regard gauche",

@@ -552,6 +552,13 @@ pub(crate) struct Racer {
     // lazily to track.gates), plus the checkpoint gate indices crossed this lap.
     prev_d: Vec<f64>,
     checkpoints_hit: HashSet<usize>,
+    // Gate index of the last checkpoint crossed this lap (None = none yet, so a
+    // respawn falls back to the start). Set in check_lap_crossings.
+    last_checkpoint: Option<usize>,
+    // Edge-detection for the respawn input, plus a one-shot flag the physics pass
+    // consumes to teleport the car back to last_checkpoint.
+    prev_respawn: bool,
+    respawn_requested: bool,
     finished: bool,
     reversing: bool,
     grip_blend: f64,
@@ -589,6 +596,9 @@ impl Racer {
             laps: 0,
             prev_d: Vec::new(),
             checkpoints_hit: HashSet::new(),
+            last_checkpoint: None,
+            prev_respawn: false,
+            respawn_requested: false,
             finished: false,
             reversing: false,
             grip_blend: 0.0,
@@ -769,6 +779,7 @@ impl Lobby {
             return false;
         }
 
+        self.apply_respawns();
         let state_snapshot = self.prepare_player_state_sync(delta);
         self.physics.step(delta);
         self.handle_boost_pads();
@@ -894,6 +905,7 @@ impl Lobby {
                         steer_left,
                         steer_right,
                         drift,
+                        respawn,
                     }) => {
                         sr_log!(
                             trace,
@@ -905,6 +917,12 @@ impl Lobby {
                             steer_right,
                             drift
                         );
+                        // Rising edge of the respawn key arms a one-shot teleport,
+                        // applied in apply_respawns() before the physics step.
+                        if respawn && !racer.prev_respawn {
+                            racer.respawn_requested = true;
+                        }
+                        racer.prev_respawn = respawn;
                         racer.input = PlayerInput {
                             throttle,
                             steer_left,
@@ -1116,12 +1134,18 @@ impl Lobby {
         }
         self.sync_timer = 0.;
 
+        // Live ranking: each racer's rank is 1 + the number of racers strictly
+        // ahead of it by progress score.
+        let scores = self.race_rank_scores();
+
         let physics = &self.physics;
         let mut states = Vec::with_capacity(self.racers.len());
         for (nickname, racer) in &mut self.racers {
             let Some(rb) = physics.get(racer.rigid_body) else {
                 continue;
             };
+            let my_score = scores.get(nickname).copied().unwrap_or(0.0);
+            let rank = 1 + scores.values().filter(|&&s| s > my_score).count() as u8;
             let t = rb.translation();
             let r = rb.rotation();
             let rotation = stabilize_quaternion(
@@ -1138,6 +1162,7 @@ impl Lobby {
                 nickname: nickname.clone(),
                 racing: racer.racing,
                 laps: racer.laps,
+                rank,
                 position: Vec3Proto {
                     x: t.x,
                     y: t.y,
@@ -1284,6 +1309,9 @@ impl Lobby {
             racer.laps = 0;
             racer.prev_d.clear();
             racer.checkpoints_hit.clear();
+            racer.last_checkpoint = None;
+            racer.prev_respawn = false;
+            racer.respawn_requested = false;
             racer.finished = false;
             racer.racing = true;
             racer.reversing = false;
@@ -1417,6 +1445,91 @@ impl Lobby {
         self.state = State::Intermission;
     }
 
+    /// Teleport any racer that pressed respawn back to its last crossed checkpoint
+    /// (or the start heading if none), stationary. Runs before the physics step so
+    /// the car integrates from rest at the new pose. Progress (laps, checkpoints)
+    /// is preserved — only the body pose is reset.
+    fn apply_respawns(&mut self) {
+        let gates = &self.track.gates;
+        let spawn_point = self.spawn_point;
+        let spawn_yaw = self.spawn_y_rotation.to_radians();
+        let physics = &mut self.physics;
+        for racer in self.racers.values_mut() {
+            if !std::mem::take(&mut racer.respawn_requested) {
+                continue;
+            }
+            if racer.finished || !racer.racing {
+                continue;
+            }
+            let (pos, yaw) = match racer.last_checkpoint {
+                Some(i) => {
+                    let g = &gates[i];
+                    (
+                        Vector3::new(g.position[0], g.position[1], g.position[2]),
+                        g.rotation_deg[1].to_radians(),
+                    )
+                }
+                None => (spawn_point, spawn_yaw),
+            };
+            if let Some(rb) = physics.rigid_body_set.get_mut(racer.rigid_body) {
+                rb.set_position(
+                    Pose::new(Vec3::new(pos.x, pos.y, pos.z), Vec3::new(0., yaw, 0.)),
+                    true,
+                );
+                rb.set_linvel(Vec3::new(0., 0., 0.), true);
+                rb.set_angvel(Vec3::new(0., 0., 0.), true);
+            }
+            racer.last_sent_rotation = None; // large pose jump → client snaps, no lerp
+            sr_log!(
+                info,
+                "RESPAWN",
+                "{} respawned to checkpoint",
+                racer.nickname
+            );
+        }
+    }
+
+    /// A sortable progress score per racer (higher = further ahead), used for the
+    /// live in-race ranking. Ordering, by priority: laps done, then checkpoints
+    /// crossed this lap ("last checkpoint"), then proximity to the next gate
+    /// (tie-break between racers between the same two checkpoints). Finished racers
+    /// sit above everyone, in finishing order.
+    fn race_rank_scores(&self) -> HashMap<String, f64> {
+        let checkpoints: Vec<&crate::track::Gate> = self.track.checkpoint_gates().collect();
+        let finish_gate = self.track.finish_gates().next();
+        let mut scores = HashMap::with_capacity(self.racers.len());
+        for (nickname, racer) in &self.racers {
+            let score = if racer.finished {
+                let finish_pos = self
+                    .finishers
+                    .iter()
+                    .position(|n| n == nickname)
+                    .unwrap_or(usize::MAX);
+                1e12 - finish_pos as f64
+            } else {
+                let cp_done = racer.checkpoints_hit.len();
+                // Next gate to aim for: the next un-crossed checkpoint, or the
+                // finish line once all checkpoints are done.
+                let next_gate = if cp_done < checkpoints.len() {
+                    Some(checkpoints[cp_done])
+                } else {
+                    finish_gate
+                };
+                let dist = match (self.physics.get(racer.rigid_body), next_gate) {
+                    (Some(rb), Some(g)) => {
+                        let t = rb.translation();
+                        let c = g.center();
+                        ((t.x - c.x).powi(2) + (t.z - c.z).powi(2)).sqrt()
+                    }
+                    _ => 0.0,
+                };
+                racer.laps as f64 * 1e9 + cp_done as f64 * 1e6 - dist
+            };
+            scores.insert(nickname.clone(), score);
+        }
+        scores
+    }
+
     fn check_lap_crossings(&mut self) {
         let race_timer = self.race_timer;
         let physics = &self.physics;
@@ -1470,6 +1583,7 @@ impl Lobby {
                 if g.is_checkpoint() {
                     if (prev < 0.0) != (d < 0.0) {
                         racer.checkpoints_hit.insert(i);
+                        racer.last_checkpoint = Some(i);
                     }
                 } else if g.provides_finish()
                     && prev < 0.0
@@ -1478,6 +1592,7 @@ impl Lobby {
                 {
                     racer.laps += 1;
                     racer.checkpoints_hit.clear();
+                    racer.last_checkpoint = None; // fresh lap: respawn at the line until a CP
                     sr_log!(trace, "LAP", "{}: lap {}", racer.nickname, racer.laps);
 
                     if racer.laps >= laps_to_win {
